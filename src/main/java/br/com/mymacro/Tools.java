@@ -84,12 +84,18 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 		if (e.getKeyCode() != 2 && e.getKeyCode() != 29) {
 			this.anotherKey = true;
 		}
-
+		System.out.println("pad1 = "+pad1+" ctrl="+ctrl+" anotherKey="+anotherKey);
 		this.macro(pad1 && ctrl && !anotherKey);
 	}
 
 	@Override
 	public void nativeKeyReleased(NativeKeyEvent e) {
+		if (e.getKeyCode() == 2) {
+			this.pad1 = false;
+		}
+		if (e.getKeyCode() == 29) {
+			this.ctrl = false;
+		}
 		if (e.getKeyCode() != 2 && e.getKeyCode() != 29) {
 			this.anotherKey = false;
 		}
@@ -105,8 +111,11 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 
 	public void macro(Boolean ativar) {
 		if (ativar && isEnableMacro) {
-			isEnableMacro = false;
 			Tools.unRegisterListner();
+			sleep(100);
+			isEnableMacro = false;
+			pad1 = false;
+			ctrl = false;
 			try {
 				controlC();
 				sleep(500);
@@ -118,8 +127,7 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 				System.out.println(e);
 			}
 			isEnableMacro = true;
-			pad1 = false;
-			ctrl = false;
+			
 			Tools.registerListner();
 		}
 	}
