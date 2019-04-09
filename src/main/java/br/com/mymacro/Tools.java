@@ -9,6 +9,8 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.KeyEvent;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -21,16 +23,19 @@ import org.jnativehook.mouse.NativeMouseEvent;
 import org.jnativehook.mouse.NativeMouseInputListener;
 import org.jnativehook.mouse.NativeMouseWheelEvent;
 import org.jnativehook.mouse.NativeMouseWheelListener;
+import org.slf4j.helpers.MessageFormatter;
 
 import com.sun.jna.Native;
-import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.win32.StdCallLibrary;
 
 public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInputListener, NativeMouseWheelListener {
 
-	private Boolean esc = false;
-	private Boolean shift = false;
+	private SQLiteJDBCDriverConnection conn = new SQLiteJDBCDriverConnection();
+	private Boolean isEnableMacro = true;
+	private Boolean pad1 = false;
+	private Boolean ctrl = false;
+	private Boolean anotherKey = false;
 
 	public interface CustomUser32 extends StdCallLibrary {
 		CustomUser32 INSTANCE = (CustomUser32) Native.load("user32", CustomUser32.class);
@@ -40,11 +45,20 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 		void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);
 	}
 
-	void controlC(CustomUser32 customUser32) {
+	void controlC() {
+		CustomUser32 customUser32 = CustomUser32.INSTANCE;
 		customUser32.keybd_event((byte) 0x11, (byte) 0, 0, 0);
 		customUser32.keybd_event((byte) 0x43, (byte) 0, 0, 0);
 		customUser32.keybd_event((byte) 0x43, (byte) 0, 2, 0);
 		customUser32.keybd_event((byte) 0x11, (byte) 0, 2, 0);
+	}
+
+	void controlV() throws AWTException {
+		Robot robot = new Robot();
+		robot.keyPress(KeyEvent.VK_CONTROL);
+		robot.keyPress(KeyEvent.VK_V);
+		robot.keyRelease(KeyEvent.VK_V);
+		robot.keyRelease(KeyEvent.VK_CONTROL);
 	}
 
 	String getClipboardText() throws Exception {
@@ -55,61 +69,85 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(data), this);
 	}
 
-	String getSelectedText(User32 user32, CustomUser32 customUser32) throws Exception {
-		String before = getClipboardText();
-		controlC(customUser32);
-		Thread.sleep(100);
-		String text = getClipboardText();
-		setClipboardText(before);
-		return text;
-	}
-
 	@Override
 	public void lostOwnership(Clipboard clipboard, Transferable contents) {
 	}
 
 	@Override
 	public void nativeKeyPressed(NativeKeyEvent e) {
-		if (e.getKeyCode() == 42) {
-			this.shift = true;
+		if (e.getKeyCode() == 2) {
+			this.pad1 = true;
 		}
-		if (e.getKeyCode() == 1) {
-			this.esc = true;
+		if (e.getKeyCode() == 29) {
+			this.ctrl = true;
 		}
-		System.out.println(e.getKeyCode());
-		this.macro(esc&&shift);
+		if (e.getKeyCode() != 2 && e.getKeyCode() != 29) {
+			this.anotherKey = true;
+		}
+
+		this.macro(pad1 && ctrl && !anotherKey);
 	}
 
 	@Override
 	public void nativeKeyReleased(NativeKeyEvent e) {
-		if (e.getKeyCode() == 42) {
-			this.shift = false;
+		if (e.getKeyCode() != 2 && e.getKeyCode() != 29) {
+			this.anotherKey = false;
 		}
-		if (e.getKeyCode() == 1) {
-			this.esc = false;
+	}
+
+	static void sleep(long millissegundos) {
+		try {
+			Thread.sleep(millissegundos);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 	}
 
 	public void macro(Boolean ativar) {
-		if (ativar) {
+		if (ativar && isEnableMacro) {
+			isEnableMacro = false;
 			Tools.unRegisterListner();
 			try {
-				Robot robot = new Robot();
-				robot.keyPress (KeyEvent.VK_CONTROL);
-				robot.keyPress (KeyEvent.VK_V);
-				robot.keyRelease (KeyEvent.VK_V);
-				robot.keyRelease (KeyEvent.VK_CONTROL);
-			} catch ( AWTException e) {
+				controlC();
+				sleep(500);
+				String textSelected = getClipboardText();
+				setClipboardText(getMacro(1, textSelected));
+				sleep(500);
+				controlV();
+			} catch (Exception e) {
 				System.out.println(e);
 			}
-			
+			isEnableMacro = true;
+			pad1 = false;
+			ctrl = false;
 			Tools.registerListner();
 		}
 	}
 
-	@Override
-	public void nativeKeyTyped(NativeKeyEvent e) {
+	public String getMacro(Integer ordem, String selectedText) {
+		ResultSet set;
+		String macro = null;
+		try {
+			set = conn.select("SELECT * FROM MACRO WHERE ORDEM = " + ordem);
+			if(set.next()) {
+				String[] param = selectedText.split(" ");
+				macro = set.getString("MACRO");
+				macro = format(macro, param);
+				
+			}
+			set.close();
+		} catch (SQLException e) {
+			System.out.println(e);
+		}
+		return macro;
 	}
+
+	public static String format(String msg, Object... objs) {
+		return MessageFormatter.arrayFormat(msg, objs).getMessage();
+	}
+
+	@Override
+	public void nativeKeyTyped(NativeKeyEvent e) {}
 
 	public static void registraListener() {
 		Tools tools = new Tools();

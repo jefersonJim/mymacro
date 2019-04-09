@@ -56,7 +56,9 @@ public class EditorScreen extends JDialog {
 		RSyntaxTextArea.setTemplatesEnabled(true);
 		CodeTemplateManager ctm = RSyntaxTextArea.getCodeTemplateManager();
 		CodeTemplate ct = new ArtemisCodeTemplate("cmt", "/*", "<escreva aqui>", "*/");
+		CodeTemplate param = new ArtemisCodeTemplate("p", "{", "<Número do parametro>", "}");
 		ctm.addTemplate(ct);
+		ctm.addTemplate(param);
 		textArea = new RSyntaxTextArea(20, 60);
 		textArea.setCodeFoldingEnabled(true);
 		
@@ -138,7 +140,12 @@ public class EditorScreen extends JDialog {
 
 		DefaultCompletionProvider provider = new DefaultCompletionProvider();
 
-		provider.addCompletion(new BasicCompletion(provider, "(:param)"));
+		provider.addCompletion(new BasicCompletion(provider, "{}"));
+		provider.addCompletion(new BasicCompletion(provider, "{1}"));
+		provider.addCompletion(new BasicCompletion(provider, "{2}"));
+		provider.addCompletion(new BasicCompletion(provider, "{3}"));
+		provider.addCompletion(new BasicCompletion(provider, "{5}"));
+		provider.addCompletion(new BasicCompletion(provider, "{6}"));
 		return provider;
 
 	}
