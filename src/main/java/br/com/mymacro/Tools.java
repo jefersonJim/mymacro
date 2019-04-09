@@ -11,6 +11,9 @@ import java.awt.datatransfer.Transferable;
 import java.awt.event.KeyEvent;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -33,9 +36,7 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 
 	private SQLiteJDBCDriverConnection conn = new SQLiteJDBCDriverConnection();
 	private Boolean isEnableMacro = true;
-	private Boolean pad1 = false;
-	private Boolean ctrl = false;
-	private Boolean anotherKey = false;
+	private AtomicInteger countKey = new AtomicInteger(0);
 
 	public interface CustomUser32 extends StdCallLibrary {
 		CustomUser32 INSTANCE = (CustomUser32) Native.load("user32", CustomUser32.class);
@@ -74,31 +75,25 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 	}
 
 	@Override
-	public void nativeKeyPressed(NativeKeyEvent e) {
-		if (e.getKeyCode() == 2) {
-			this.pad1 = true;
-		}
-		if (e.getKeyCode() == 29) {
-			this.ctrl = true;
-		}
-		if (e.getKeyCode() != 2 && e.getKeyCode() != 29) {
-			this.anotherKey = true;
-		}
-		System.out.println("pad1 = "+pad1+" ctrl="+ctrl+" anotherKey="+anotherKey);
-		this.macro(pad1 && ctrl && !anotherKey);
-	}
+	public void nativeKeyPressed(NativeKeyEvent e) { }
 
 	@Override
 	public void nativeKeyReleased(NativeKeyEvent e) {
-		if (e.getKeyCode() == 2) {
-			this.pad1 = false;
+		if (e.getKeyCode() == 54) {
+			this.macro(countKey.incrementAndGet() == 2);
+			this.clearkeyCount();
 		}
-		if (e.getKeyCode() == 29) {
-			this.ctrl = false;
-		}
-		if (e.getKeyCode() != 2 && e.getKeyCode() != 29) {
-			this.anotherKey = false;
-		}
+	}
+
+	public void clearkeyCount(){
+		int delay = 1000;     
+		Timer timer = new Timer("ShiftRelease");
+		timer.schedule(new TimerTask(){
+			@Override
+			public void run() {
+				countKey.set(0);
+			}
+		}, delay);
 	}
 
 	static void sleep(long millissegundos) {
@@ -109,13 +104,13 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 		}
 	}
 
+
+
 	public void macro(Boolean ativar) {
 		if (ativar && isEnableMacro) {
 			Tools.unRegisterListner();
 			sleep(100);
 			isEnableMacro = false;
-			pad1 = false;
-			ctrl = false;
 			try {
 				controlC();
 				sleep(500);
@@ -140,8 +135,7 @@ public class Tools implements ClipboardOwner, NativeKeyListener, NativeMouseInpu
 			if(set.next()) {
 				String[] param = selectedText.split(" ");
 				macro = set.getString("MACRO");
-				macro = format(macro, param);
-				
+				macro = format(macro, (Object[]) param);	
 			}
 			set.close();
 		} catch (SQLException e) {
